@@ -228,9 +228,9 @@ button:disabled{cursor:default}
     </div>
     <div class="flabel" id="diffLabel">Schwierigkeit</div>
     <div class="seg" role="radiogroup" aria-labelledby="diffLabel" id="diffSeg">
-      <button type="button" role="radio" id="dLeicht" data-d="leicht" aria-checked="false">Leicht<small>40 Leben</small></button>
-      <button type="button" role="radio" id="dNormal" data-d="normal" aria-checked="true">Normal<small>30 Leben</small></button>
-      <button type="button" role="radio" id="dSchwer" data-d="schwer" aria-checked="false">Schwer<small>20 Leben</small></button>
+      <button type="button" role="radio" id="dLeicht" data-d="leicht" aria-checked="false">Leicht<small>35 Leben</small></button>
+      <button type="button" role="radio" id="dNormal" data-d="normal" aria-checked="true">Normal<small>25 Leben</small></button>
+      <button type="button" role="radio" id="dSchwer" data-d="schwer" aria-checked="false">Schwer<small>15 Leben</small></button>
     </div>
     <div class="flabel" id="timerLabel">Wellen-Timer</div>
     <div class="seg two" role="radiogroup" aria-labelledby="timerLabel" id="timerSeg">
@@ -309,9 +309,9 @@ const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const ZMAX = 3;
 
 const DIFF = {
-  leicht: { label: 'Leicht', hp: 0.72, gold: 70, lives: 40 },
-  normal: { label: 'Normal', hp: 1, gold: 60, lives: 30 },
-  schwer: { label: 'Schwer', hp: 1.32, gold: 55, lives: 20 },
+  leicht: { label: 'Leicht', hp: 0.85, gold: 65, lives: 35, speed: 1 },
+  normal: { label: 'Normal', hp: 1.2, gold: 55, lives: 25, speed: 1.05 },
+  schwer: { label: 'Schwer', hp: 1.55, gold: 50, lives: 15, speed: 1.1 },
 };
 const MODE = { campaign: 'Kampagne', endless: 'Endlos' };
 
@@ -614,7 +614,7 @@ function startWave() {
 function makeCreep(kind, hp, bounty, affix, name) {
   const k = KIND[kind];
   return {
-    kind, name, air: !!k.air, hp, maxhp: hp, speed: k.speed * (affix.includes('flink') ? 1.2 : 1), r: k.r, bounty, leak: k.leak,
+    kind, name, air: !!k.air, hp, maxhp: hp, speed: k.speed * (affix.includes('flink') ? 1.2 : 1) * DIFF[S.diff].speed, r: k.r, bounty, leak: k.leak,
     armor: !!k.armor || affix.includes('panzer'), boss: !!k.boss, regen: affix.includes('regen'), frostImmune: affix.includes('frostfest'),
     ability: k.ability || null, abT: k.ability === 'heal' ? 2 : 3, summonLvl: 0, enraged: false,
     slowT: 0, slowMul: 1, stunT: 0, burnT: 0, burnDps: 0, wob: Math.random() * 6.283, hitT: 0, dead: false,
