@@ -1,6 +1,6 @@
 // Frostpass: hält das Spiel offline verfügbar.
 // Zeigt sofort die gespeicherte Version und lädt im Hintergrund die neueste nach.
-const CACHE = 'frostpass-v5';
+const CACHE = 'frostpass-v6';
 const ASSETS = [
   "./",
   "index.html",
