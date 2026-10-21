@@ -77,6 +77,8 @@ button:disabled{cursor:default}
 .zoom button{width:34px;height:34px;border-radius:9px;border:1px solid rgba(42,66,88,.95);background:rgba(14,24,34,.8);display:grid;place-items:center}
 .zoom button svg{width:15px;height:15px}
 .zoom button:disabled{opacity:.4}
+.pill{position:absolute;left:6px;bottom:6px;z-index:3;height:34px;max-width:calc(100% - 56px);padding:0 12px 0 10px;border-radius:9px;border:1px solid rgba(42,66,88,.95);background:rgba(14,24,34,.86);display:flex;align-items:center;gap:7px;font-family:var(--f-hud);font-weight:600;font-size:.98rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pill svg{width:15px;height:15px;flex:none;color:var(--gold)}
 .toast{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:6;max-width:calc(100% - 24px);width:max-content;background:rgba(14,24,34,.92);border:1px solid var(--line);color:var(--text);padding:7px 14px;border-radius:999px;font-size:.84rem;font-weight:500;text-align:center;pointer-events:none;animation:toastIn .18s ease-out}
 .toast.low{top:54px}
 @keyframes toastIn{from{opacity:0;transform:translate(-50%,-6px)}to{opacity:1;transform:translate(-50%,0)}}
@@ -112,6 +114,8 @@ button:disabled{cursor:default}
 .cbtn.go span{color:var(--frost-ink);opacity:.78}
 .cbtn.go.hot{background:var(--gold)}
 .cbtn:disabled{opacity:.42}
+.cbtn.warn{border-color:var(--blood);box-shadow:inset 0 0 0 1px var(--blood)}
+.cbtn.warn span,.cbtn.warn b{color:var(--blood)}
 
 .build{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
 .tb{min-width:0;display:flex;flex-direction:column;align-items:center;gap:1px;padding:6px 2px 5px;border-radius:10px;border:1px solid var(--line);background:var(--ink-2)}
@@ -192,6 +196,7 @@ button:disabled{cursor:default}
   <main class="board" id="board">
     <div class="stage" id="stage">
       <canvas id="field" role="img" aria-label="Spielfeld"></canvas>
+      <button class="pill" type="button" id="selPill" hidden></button>
       <div class="zoom">
         <button type="button" id="zIn" aria-label="Hineinzoomen"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
         <button type="button" id="zOut" aria-label="Herauszoomen"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
@@ -238,7 +243,8 @@ button:disabled{cursor:default}
       <summary>Spielregeln</summary>
       <ul class="rules">
         <li><b>Bauen:</b> Turm unten antippen, dann ins Feld. Gebaut wird dort, wo du den Finger loslässt.</li>
-        <li><b>Zoomen:</b> mit zwei Fingern oder mit + und −. Ohne gewählten Turm verschiebst du das Feld mit einem Finger.</li>
+        <li><b>Zoomen:</b> mit zwei Fingern oder mit + und −. Zwei Finger verschieben das Feld auch, gezoomt geht das mit einem Finger auf freien Feldern.</li>
+        <li><b>Mehrere Türme:</b> Finger auf einen Turm legen und über gleiche Türme wischen, oder unten links „Alle“ antippen. Dann wertest du alle auf einmal auf.</li>
         <li><b>Labyrinth:</b> Eisblöcke kosten nur 5 Gold. Den Weg ganz zu versperren geht nicht.</li>
         <li><b>Flieger</b> nehmen die direkte Linie zum Portal. Dagegen hilft der Sturmturm.</li>
         <li><b>Stufe 3:</b> Jeder Turm kann sich für eine von zwei Richtungen entscheiden.</li>
@@ -311,9 +317,9 @@ const MODE = { campaign: 'Kampagne', endless: 'Endlos' };
 
 /* ---------- Türme ---------- */
 const TYPES = {
-  wall: { short: 'Block', name: 'Eisblock', cost: 5, blocker: true,
+  wall: { short: 'Block', name: 'Eisblock', plural: 'Eisblöcke', cost: 5, blocker: true,
     desc: 'Billiger Block ohne Angriff. Formt das Labyrinth.', levels: [{}], branches: null },
-  arrow: { short: 'Speer', name: 'Speerturm', cost: 10, hits: 'both',
+  arrow: { short: 'Speer', name: 'Speerturm', plural: 'Speertürme', cost: 10, hits: 'both',
     desc: 'Schnelle Speere gegen Boden und Luft.',
     levels: [
       { dmg: 7, range: 2.6, rate: 0.75, armorMul: 0.5 },
@@ -323,7 +329,7 @@ const TYPES = {
         desc: 'Schaden 62, Reichweite 3,6. Durchschlägt Panzer.' },
       { name: 'Salventurm', cost: 65, dmg: 24, range: 2.9, rate: 0.55, armorMul: 0.5, multi: 3,
         desc: 'Wirft 3 Speere auf verschiedene Ziele, je 24 Schaden.' }] },
-  cannon: { short: 'Mörser', name: 'Mörser', cost: 20, hits: 'ground',
+  cannon: { short: 'Mörser', name: 'Mörser', plural: 'Mörser', cost: 20, hits: 'ground',
     desc: 'Flächenschaden am Boden. Stark gegen Panzer.',
     levels: [
       { dmg: 14, range: 2.5, rate: 1.5, splash: 0.9, armorMul: 1.25 },
@@ -333,7 +339,7 @@ const TYPES = {
         desc: 'Schaden 125, große Fläche, 60 % mehr gegen Panzer.' },
       { name: 'Brandmörser', cost: 95, dmg: 60, range: 2.8, rate: 1.3, splash: 1.1, armorMul: 1.25, burn: 26,
         desc: 'Schaden 60 und Feuer: 26 pro Sekunde für 3 Sekunden.' }] },
-  frost: { short: 'Frost', name: 'Frostturm', cost: 25, hits: 'both',
+  frost: { short: 'Frost', name: 'Frostturm', plural: 'Frosttürme', cost: 25, hits: 'both',
     desc: 'Bremst Gegner am Boden und in der Luft.',
     levels: [
       { dmg: 3, range: 2.3, rate: 1.0, slow: 0.35, slowDur: 2 },
@@ -343,7 +349,7 @@ const TYPES = {
         desc: 'Frostwelle um den Turm: trifft alle Gegner und bremst sie um 60 %.' },
       { name: 'Eissplitter', cost: 95, dmg: 58, range: 2.9, rate: 0.8, slow: 0.4, slowDur: 2, shatter: true,
         desc: 'Schaden 58, bremst. 60 % mehr Schaden gegen gebremste Gegner.' }] },
-  storm: { short: 'Sturm', name: 'Sturmturm', cost: 25, hits: 'air',
+  storm: { short: 'Sturm', name: 'Sturmturm', plural: 'Sturmtürme', cost: 25, hits: 'air',
     desc: 'Nur gegen Flieger, dafür sehr stark.',
     levels: [
       { dmg: 32, range: 3.5, rate: 0.9 },
@@ -353,7 +359,7 @@ const TYPES = {
         desc: 'Schaden 270 gegen einen Flieger, Reichweite 4,4.' },
       { name: 'Wirbelsturm', cost: 125, dmg: 120, range: 4.0, rate: 0.8, splash: 1.25,
         desc: 'Schaden 120 an allen Fliegern im Umkreis.' }] },
-  bolt: { short: 'Blitz', name: 'Blitzturm', cost: 70, hits: 'both',
+  bolt: { short: 'Blitz', name: 'Blitzturm', plural: 'Blitztürme', cost: 70, hits: 'both',
     desc: 'Kettenblitz, springt auf mehrere Gegner.',
     levels: [
       { dmg: 36, range: 2.8, rate: 1.3, chain: 3 },
@@ -441,7 +447,7 @@ function newGame(diff, demo, mode = 'campaign', timerOn = true) {
   S.wave = 0; S.phase = 'build'; S.cur = null;
   S.towers = []; S.cellTower = new Int32Array(N).fill(-1);
   S.creeps = []; S.shots = []; S.fx = []; S.queue = []; S.qTime = 0;
-  S.selType = null; S.selTower = null; S.branchOpen = false;
+  S.selType = null; S.sel = []; S.branchOpen = false; S.sellArm = 0;
   S.kills = 0; S.breakId = 1; S.nextId = 1;
   S.paused = false; S.speed = 1; S.demoT = 0.6; S.demoI = 0;
   S.timer = 45; S.saveT = 3; S.waveStartSave = null;
@@ -916,7 +922,7 @@ function update(dt) {
   updateShots(dt);
   updateFx(dt);
   S.creeps = S.creeps.filter(m => !m.dead);
-  if (S.selTower && !S.towers.includes(S.selTower)) S.selTower = null;
+  if (S.sel.length && !S.sel.every(t => S.towers.includes(t))) S.sel = S.sel.filter(t => S.towers.includes(t));
   if (S.phase === 'wave' && !S.queue.length && !S.creeps.length) waveCleared();
   if (S.demo && S.phase === 'build') {
     S.demoT -= dt;
@@ -1027,7 +1033,7 @@ function drawTrail(ctx, path) {
 function showAirLines() {
   if (S.phase === 'wave' && S.cur && S.cur.k.air) return true;
   if (S.phase === 'build' && !(S.mode === 'campaign' && S.wave >= 30) && KIND[waveDef(S.wave + 1).kind].air) return true;
-  return S.selType === 'storm' || (S.selTower && S.selTower.type === 'storm');
+  return S.selType === 'storm' || (S.sel.length > 0 && S.sel[0].type === 'storm');
 }
 function drawAirLines(ctx) {
   ctx.save();
@@ -1036,8 +1042,9 @@ function drawAirLines(ctx) {
   for (const g of GATE_PT) { ctx.beginPath(); ctx.moveTo(g.x, 0); ctx.lineTo(EXIT_PT.x, EXIT_PT.y); ctx.stroke(); }
   ctx.restore();
 }
-function rangeRing(ctx, x, y, R) {
-  ctx.fillStyle = 'rgba(70,160,215,.13)'; ctx.strokeStyle = 'rgba(40,120,175,.6)'; ctx.lineWidth = 0.04;
+function rangeRing(ctx, x, y, R, faint) {
+  ctx.fillStyle = faint ? 'rgba(70,160,215,.05)' : 'rgba(70,160,215,.13)';
+  ctx.strokeStyle = faint ? 'rgba(40,120,175,.32)' : 'rgba(40,120,175,.6)'; ctx.lineWidth = 0.04;
   circle(ctx, x, y, R); ctx.fill(); ctx.stroke();
 }
 
@@ -1384,9 +1391,9 @@ function draw() {
   for (const p of pv) drawTrail(ctx, p);
   if (showAirLines()) drawAirLines(ctx);
 
-  if (S.selTower) {
-    const L = stats(S.selTower);
-    if (L.range) rangeRing(ctx, S.selTower.x, S.selTower.y, L.range);
+  for (const t of S.sel) {
+    const L = stats(t);
+    if (L.range) rangeRing(ctx, t.x, t.y, L.range, S.sel.length > 1);
   }
   if (ghost && S.selType) {
     const L0 = TYPES[S.selType].levels[0];
@@ -1396,9 +1403,9 @@ function draw() {
     drawTower(ctx, t.type, t.lvl, t.branch, t.x, t.y, t.ang, t.pulse, 1, time);
     if (t.frozenT > 0) drawFrozen(ctx, t);
   }
-  if (S.selTower) {
+  if (S.sel.length) {
     ctx.strokeStyle = '#e0a22e'; ctx.lineWidth = 0.07;
-    rrect(ctx, S.selTower.c + 0.03, S.selTower.r + 0.03, 0.94, 0.94, 0.16); ctx.stroke();
+    for (const t of S.sel) { rrect(ctx, t.c + 0.03, t.r + 0.03, 0.94, 0.94, 0.16); ctx.stroke(); }
   }
   const ground = S.creeps.filter(m => !m.air && !m.dead).sort((a, b) => a.y - b.y);
   for (const m of ground) drawCreep(ctx, m);
@@ -1490,10 +1497,38 @@ for (const key of ORDER) {
 }
 
 function playing() { return !S.demo && S.phase !== 'over' && S.phase !== 'won'; }
+const prim = () => S.sel[0] || null;
+const sameType = type => S.towers.filter(t => t.type === type);
+const many = (n, T) => n === 1 ? T.name : `${n} ${T.plural}`;
+const armed = () => S.sellArm > performance.now();
+function towerAt(c, r) {
+  if (c < 0 || r < 0 || c >= COLS || r >= ROWS) return null;
+  const id = S.cellTower[idx(c, r)];
+  return id >= 0 ? S.towers.find(t => t.id === id) || null : null;
+}
+function selectOne(t) {
+  S.sel = t ? [t] : [];
+  S.selType = null; S.branchOpen = false; S.sellArm = 0;
+  ghost = null;
+}
+function addSel(t) {
+  if (S.sel.includes(t)) return;
+  S.sel.push(t); S.branchOpen = false; S.sellArm = 0;
+  S.fx.push({ k: 'ring', x: t.x, y: t.y, r: 0.5, t: 0, dur: 0.25, c: 'gold' });
+}
+let tipShown = false;
+function multiTip(t) {
+  if (tipShown || TYPES[t.type].blocker || sameType(t.type).length < 2) return;
+  const n = store.get('frostpass.tipMulti', 0);
+  if (n >= 3) return;
+  tipShown = true;
+  store.set('frostpass.tipMulti', n + 1);
+  toast('Tipp: Wisch von diesem Turm über gleiche Türme, um mehrere auszuwählen.');
+}
 function selectType(key) {
   if (!playing()) return;
   S.selType = S.selType === key ? null : key;
-  S.selTower = null; S.branchOpen = false;
+  S.sel = []; S.branchOpen = false; S.sellArm = 0;
   ghost = null;
 }
 function sellValue(t) { return (S.phase === 'build' && t.built === S.breakId) ? t.spent : Math.floor(t.spent * 0.7); }
@@ -1510,46 +1545,83 @@ function build(type, c, r) {
   S.fx.push({ k: 'ring', x: c + 0.5, y: r + 0.5, r: 0.6, t: 0, dur: 0.3, c: 'frost' });
   changed();
 }
+// Wertet alle ausgewählten Türme auf Stufe 1 auf Stufe 2 auf, so viele wie das Gold reicht.
+// Sind keine mehr auf Stufe 1, öffnet sich die Wahl für Stufe 3.
 function upgrade() {
-  const t = S.selTower; if (!t || !playing()) return;
-  const T = TYPES[t.type];
-  if (!T.branches || t.lvl >= 2) return;
-  if (t.lvl === 1) { S.branchOpen = !S.branchOpen; return; }
-  const nx = T.levels[1];
-  if (S.gold < nx.cost) { toast('Nicht genug Gold.'); return; }
-  S.gold -= nx.cost; t.lvl = 1; t.spent += nx.cost;
-  S.fx.push({ k: 'ring', x: t.x, y: t.y, r: 0.7, t: 0, dur: 0.4, c: 'gold' });
+  const p = prim(); if (!p || !playing()) return;
+  const T = TYPES[p.type];
+  if (!T.branches) return;
+  const low = S.sel.filter(t => t.lvl === 0);
+  if (!low.length) { if (S.sel.some(t => t.lvl === 1)) S.branchOpen = !S.branchOpen; return; }
+  const cost = T.levels[1].cost;
+  let n = 0;
+  for (const t of low) {
+    if (S.gold < cost) break;
+    S.gold -= cost; t.lvl = 1; t.spent += cost; n++;
+    S.fx.push({ k: 'ring', x: t.x, y: t.y, r: 0.7, t: 0, dur: 0.4, c: 'gold' });
+  }
+  S.sellArm = 0;
+  if (!n) toast('Nicht genug Gold.');
+  else if (n < low.length) toast(`${n} von ${low.length} aufgewertet. Für den Rest fehlt Gold.`);
+  else if (n > 1) toast(`${n} ${T.plural} auf Stufe 2.`);
   changed();
 }
 function chooseBranch(b) {
-  const t = S.selTower; if (!t || t.lvl !== 1 || !playing()) return;
-  const br = TYPES[t.type].branches[b];
-  if (S.gold < br.cost) { toast('Nicht genug Gold.'); return; }
-  S.gold -= br.cost; t.lvl = 2; t.branch = b; t.spent += br.cost;
-  S.branchOpen = false;
-  S.fx.push({ k: 'ring', x: t.x, y: t.y, r: 0.9, t: 0, dur: 0.5, c: b ? 'frost' : 'gold' });
-  toast(`${TYPES[t.type].name} wird zu: ${br.name}`);
+  const p = prim(); if (!p || !playing()) return;
+  const T = TYPES[p.type], br = T.branches[b];
+  const mid = S.sel.filter(t => t.lvl === 1);
+  let n = 0;
+  for (const t of mid) {
+    if (S.gold < br.cost) break;
+    S.gold -= br.cost; t.lvl = 2; t.branch = b; t.spent += br.cost; n++;
+    S.fx.push({ k: 'ring', x: t.x, y: t.y, r: 0.9, t: 0, dur: 0.5, c: b ? 'frost' : 'gold' });
+  }
+  if (!n) { toast('Nicht genug Gold.'); return; }
+  S.branchOpen = false; S.sellArm = 0;
+  if (n < mid.length) toast(`${n} von ${mid.length} werden zu: ${br.name}. Für den Rest fehlt Gold.`);
+  else toast(n === 1 ? `${T.name} wird zu: ${br.name}` : `${n} ${T.plural} werden zu: ${br.name}`);
   changed();
 }
+// Mehrere Türme verkaufen braucht einen zweiten Tipp innerhalb von 3 Sekunden.
 function sell() {
-  const t = S.selTower; if (!t || !playing()) return;
-  const v = sellValue(t);
+  if (!S.sel.length || !playing()) return;
+  if (S.sel.length > 1 && !armed()) { S.sellArm = performance.now() + 3000; return; }
+  let v = 0;
+  for (const t of S.sel) {
+    const sv = sellValue(t);
+    v += sv;
+    S.cellTower[idx(t.c, t.r)] = -1;
+    S.fx.push({ k: 'text', x: t.x, y: t.y - 0.2, txt: '+' + sv, t: 0, dur: 0.9 });
+  }
+  const gone = new Set(S.sel);
+  S.towers = S.towers.filter(o => !gone.has(o));
   S.gold += v;
-  S.towers = S.towers.filter(o => o !== t);
-  S.cellTower[idx(t.c, t.r)] = -1;
-  S.selTower = null; S.branchOpen = false;
+  S.sel = []; S.branchOpen = false; S.sellArm = 0;
   recompute();
-  S.fx.push({ k: 'text', x: t.x, y: t.y - 0.2, txt: '+' + v, t: 0, dur: 0.9 });
   changed();
+}
+function selectAllSame() {
+  const p = prim(); if (!p || !playing()) return;
+  const all = sameType(p.type);
+  if (S.sel.length >= all.length) { S.sel = []; S.branchOpen = false; S.sellArm = 0; return; }
+  for (const t of all) addSel(t);
 }
 function tap(c, r) {
   if (!playing()) return;
-  S.branchOpen = false;
-  if (c < 0 || r < 0 || c >= COLS || r >= ROWS) { S.selTower = null; return; }
-  const id = S.cellTower[idx(c, r)];
-  if (id >= 0) { S.selTower = S.towers.find(t => t.id === id) || null; S.selType = null; ghost = null; return; }
+  S.branchOpen = false; S.sellArm = 0;
+  if (c < 0 || r < 0 || c >= COLS || r >= ROWS) { S.sel = []; return; }
+  const t = towerAt(c, r);
+  if (t) { selectOne(t); multiTip(t); return; }
   if (S.selType) { build(S.selType, c, r); return; }
-  S.selTower = null;
+  S.sel = [];
+}
+// Nimmt beim Wischen alle Türme derselben Art auf der Strecke von a nach b in die Auswahl.
+function paintSelect(a, b, type) {
+  const n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 0.25));
+  for (let k = 0; k <= n; k++) {
+    const t = towerAt(Math.floor(a.x + (b.x - a.x) * k / n), Math.floor(a.y + (b.y - a.y) * k / n));
+    if (t && t.type === type) addSel(t);
+  }
 }
 function setGhost(c, r) {
   if (c < 0 || r < 0 || c >= COLS || r >= ROWS || S.cellTower[idx(c, r)] >= 0) { ghost = null; return; }
@@ -1575,8 +1647,10 @@ fc.addEventListener('pointerdown', e => {
     return;
   }
   if (pts.size > 2) return;
-  down = { x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, moved: false, cancel: false };
-  if (S.selType) { ghost = null; const p = cellAt(e); setGhost(p.c, p.r); }
+  const p0 = cellAt(e);
+  down = { x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, moved: false, cancel: false,
+    start: S.selType ? null : towerAt(p0.c, p0.r), paint: false, lu: unitAtClient(e.clientX, e.clientY) };
+  if (S.selType) { ghost = null; setGhost(p0.c, p0.r); }
 });
 fc.addEventListener('pointermove', e => {
   if (S.demo) return;
@@ -1595,7 +1669,12 @@ fc.addEventListener('pointermove', e => {
   const dx = e.clientX - down.x, dy = e.clientY - down.y;
   if (!down.moved && dx * dx + dy * dy > 64) down.moved = true;
   if (S.selType) { const p = cellAt(e); setGhost(p.c, p.r); }
-  else if (down.moved && view.z > 1) {
+  else if (down.moved && down.start && playing()) {
+    if (!down.paint) { down.paint = true; selectOne(down.start); }
+    const u = unitAtClient(e.clientX, e.clientY);
+    paintSelect(down.lu, u, down.start.type);
+    down.lu = u;
+  } else if (down.moved && view.z > 1) {
     const rc = fc.getBoundingClientRect();
     view.x -= (e.clientX - down.lx) / rc.width * COLS / view.z;
     view.y -= (e.clientY - down.ly) / rc.height * ROWS / view.z;
@@ -1636,6 +1715,7 @@ ctxEl.addEventListener('click', e => {
   else if (a === 'sell') sell();
   else if (a === 'done') { S.selType = null; ghost = null; }
 });
+$('#selPill').addEventListener('click', selectAllSame);
 sheetEl.addEventListener('click', e => {
   const b = e.target.closest('button');
   if (!b || b.disabled) return;
@@ -1650,7 +1730,8 @@ addEventListener('keydown', e => {
   const n = parseInt(e.key, 10);
   if (n >= 1 && n <= 6) selectType(ORDER[n - 1]);
   else if (e.key === ' ') { e.preventDefault(); startWave(); }
-  else if (e.key === 'Escape') { S.selType = null; S.selTower = null; S.branchOpen = false; ghost = null; }
+  else if (e.key === 'Escape') { S.selType = null; S.sel = []; S.branchOpen = false; ghost = null; }
+  else if (e.key === 'a' || e.key === 'A') selectAllSame();
   else if (e.key === 'p' || e.key === 'P') { if (!S.demo) S.paused = !S.paused; }
   else if (e.key === 'u' || e.key === 'U') upgrade();
   else if (e.key === '+') zoomBy(1.4);
@@ -1683,8 +1764,30 @@ function goButton() {
   const left = Math.max(0, Math.ceil(S.timer)), eb = earlyBonus();
   return `<button class="cbtn go${left <= 5 ? ' hot' : ''}" type="button" data-act="start"><span>Welle ${n} · ${mmss(left)}</span><b>${eb > 0 ? 'Start +' + eb : 'Starten'}</b></button>`;
 }
+function multiHTML(T) {
+  const n = S.sel.length, by = [0, 0, 0];
+  for (const t of S.sel) by[t.lvl]++;
+  const val = S.sel.reduce((a, t) => a + sellValue(t), 0);
+  const sellBtn = armed()
+    ? `<button class="cbtn warn" type="button" data-act="sell"><span>Wirklich alle?</span><b>+${nf(val)}</b></button>`
+    : `<button class="cbtn" type="button" data-act="sell"><span>Alle verkaufen</span><b>+${nf(val)}</b></button>`;
+  if (T.blocker) return `<div class="txt"><h3>${n} ${T.plural}</h3><p>Ausgewählt. Wisch über weitere Blöcke, um sie dazuzunehmen.</p></div>${sellBtn}`;
+  const parts = [];
+  for (let l = 0; l < 3; l++) if (by[l]) parts.push(`${by[l]} auf Stufe ${l + 1}`);
+  const batch = (lvl, act, label, cost) => {
+    const k = Math.min(by[lvl], Math.floor(S.gold / cost));
+    const cnt = k && k < by[lvl] ? `${k} von ${by[lvl]}` : `${by[lvl]}×`;
+    return `<button class="cbtn up" type="button" data-act="${act}" ${k ? '' : 'disabled'}${act === 'branch' ? ` aria-expanded="${S.branchOpen}"` : ''}><span>${label} · ${cnt}</span><b>${nf((k || by[lvl]) * cost)}</b></button>`;
+  };
+  let up;
+  if (by[0]) up = batch(0, 'up', 'Stufe 2', T.levels[1].cost);
+  else if (by[1]) up = batch(1, 'branch', 'Stufe 3', Math.min(...T.branches.map(b => b.cost)));
+  else up = '<button class="cbtn" type="button" disabled><span>Stufe 3</span><b>Max.</b></button>';
+  return `<div class="txt"><h3>${n} ${T.plural}</h3><p>${parts.join(' · ')}</p></div>${up}${sellBtn}`;
+}
 function contextHTML() {
-  const t = S.selTower;
+  const t = prim();
+  if (t && S.sel.length > 1) return multiHTML(TYPES[t.type]);
   if (t) {
     const T = TYPES[t.type], L = stats(t);
     const sellBtn = `<button class="cbtn" type="button" data-act="sell"><span>Verkaufen</span><b>+${sellValue(t)}</b></button>`;
@@ -1719,15 +1822,30 @@ function contextHTML() {
   return '<div class="txt"><h3>Frostpass</h3><p>Spiel beendet.</p></div>';
 }
 function sheetHTML() {
-  const t = S.selTower, T = TYPES[t.type];
-  const opt = (b, i) => `<button class="opt" type="button" data-br="${i}" id="br-${i}" ${S.gold < b.cost ? 'disabled' : ''}><b>${b.name}</b><span>${b.desc}</span><em>${b.cost} Gold</em></button>`;
-  return `<h4>Stufe 3 für den ${T.name} wählen<button type="button" data-act="close">Schließen</button></h4><div class="opts">${T.branches.map(opt).join('')}</div>`;
+  const T = TYPES[prim().type];
+  const m = S.sel.filter(t => t.lvl === 1).length;
+  const opt = (b, i) => {
+    const k = Math.min(m, Math.floor(S.gold / b.cost));
+    let price = `${b.cost} Gold`;
+    if (m > 1) price = k && k < m ? `${k} von ${m} · ${nf(k * b.cost)} Gold` : `${m} × ${b.cost} = ${nf(m * b.cost)} Gold`;
+    return `<button class="opt" type="button" data-br="${i}" id="br-${i}" ${k ? '' : 'disabled'}><b>${b.name}</b><span>${b.desc}</span><em>${price}</em></button>`;
+  };
+  const who = m > 1 ? `${m} ${T.plural}` : `den ${T.name}`;
+  return `<h4>Stufe 3 für ${who} wählen<button type="button" data-act="close">Schließen</button></h4><div class="opts">${T.branches.map(opt).join('')}</div>`;
+}
+const ICON_MULTI = '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1.2" fill="currentColor"/><rect x="9" y="1.5" width="5.5" height="5.5" rx="1.2" fill="currentColor"/><rect x="1.5" y="9" width="5.5" height="5.5" rx="1.2" fill="currentColor"/><rect x="9" y="9" width="5.5" height="5.5" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>';
+function pillState() {
+  const p = prim();
+  if (!p || !playing()) return null;
+  const total = sameType(p.type).length;
+  if (total < 2) return null;
+  return S.sel.length >= total ? { all: true, total } : { all: false, total };
 }
 let uiKey = '';
 function ui() {
   const left = S.phase === 'wave' ? S.queue.length + S.creeps.length : 0;
   const boss = !S.demo && !!bossNow();
-  const key = [S.phase, S.selType, S.selTower && S.selTower.id, S.selTower && S.selTower.lvl, S.branchOpen, S.gold, S.lives, S.wave, left,
+  const key = [S.phase, S.selType, S.sel.map(t => t.id + ':' + t.lvl).join(','), armed(), S.towers.length, S.branchOpen, S.gold, S.lives, S.wave, left,
     S.speed, S.paused, pathLen(), S.demo, S.timerOn ? Math.ceil(S.timer) : -1, boss, view.z.toFixed(2)].join('|');
   if (key === uiKey) return;
   uiKey = key;
@@ -1749,9 +1867,17 @@ function ui() {
     b.setAttribute('aria-pressed', String(S.selType === b.dataset.t));
   }
   ctxEl.innerHTML = contextHTML();
-  const showSheet = !!(S.branchOpen && S.selTower && S.selTower.lvl === 1 && TYPES[S.selTower.type].branches);
+  const p = prim();
+  const showSheet = !!(S.branchOpen && p && TYPES[p.type].branches && S.sel.some(t => t.lvl === 1));
   sheetEl.hidden = !showSheet;
   if (showSheet) sheetEl.innerHTML = sheetHTML();
+  const ps = pillState(), pill = $('#selPill');
+  pill.hidden = !ps;
+  if (ps) {
+    const T = TYPES[p.type];
+    pill.innerHTML = ps.all ? `${ICON_MULTI}Auswahl aufheben` : `${ICON_MULTI}Alle ${ps.total} ${T.plural}`;
+    pill.setAttribute('aria-label', ps.all ? 'Auswahl aufheben' : `Alle ${ps.total} ${T.plural} auswählen`);
+  }
 }
 
 /* ---------- Speichern ---------- */
@@ -1859,7 +1985,7 @@ function openMenu() {
   $('#mResume').focus();
 }
 function showEnd(won) {
-  S.selType = null; S.selTower = null; S.branchOpen = false; ghost = null;
+  S.selType = null; S.sel = []; S.branchOpen = false; ghost = null;
   const held = won ? 30 : Math.max(0, S.wave - 1);
   const endless = S.mode === 'endless';
   $('#endEyebrow').textContent = won ? 'Gewonnen' : (endless ? 'Endlos-Modus' : 'Spielende');
