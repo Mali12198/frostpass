@@ -2,7 +2,7 @@
 
 Ein Maze-Tower-Defense im Stil der Warcraft-III-Karte Wintermaul. Gegner kommen durch zwei Tore oben und wollen zum Portal unten; du baust ihnen ein Labyrinth aus Türmen in den Weg.
 
-Kampagne mit 30 Wellen und 5 Bossen, Endlos-Modus, verzweigte Turm-Upgrades, Wellen-Timer, Zinsen, Zoom und automatisches Speichern.
+Endlos-Modus in drei Schwierigkeiten, vier Karten, zwölf Gegnerarten und sechs Bosse, verzweigte Turm-Upgrades, Zauber, Segen nach jedem Boss, Wellen-Timer, Zinsen, Zoom, Ton und automatisches Speichern.
 
 ## Auf dem iPhone installieren
 
